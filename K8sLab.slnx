@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="src/K8sLab/K8sLab.csproj" />
+  <Project Path="tests/K8sLab.Tests/K8sLab.Tests.csproj" />
 </Solution>

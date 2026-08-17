@@ -45,3 +45,8 @@ app.MapGet("/healthz", static () => Results.Ok());
 app.MapGroup("/api")
    .MapInfoEndpoints();
 app.Run();
+
+// Top-level statements compile into an internal Program class, which
+// WebApplicationFactory cannot reach. This makes it public so the tests
+// can boot the real application instead of a stand-in.
+public partial class Program;
