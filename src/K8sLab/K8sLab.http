@@ -1,0 +1,8 @@
+@K8sLab_HostAddress = http://localhost:5103
+
+### Node and pod that answered, plus the env label used across all telemetry
+GET {{K8sLab_HostAddress}}/api/info
+Accept: application/json
+
+### What Alloy scrapes: built-in ASP.NET Core metrics plus api_info_requests_total
+GET {{K8sLab_HostAddress}}/metrics

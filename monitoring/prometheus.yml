@@ -1,0 +1,28 @@
+# Prometheus acts as a receiver here: it does not collect cluster metrics
+# itself, Alloy pushes them in via remote write. Same split as the logs
+# going into Loki — collection inside the cluster, storage outside.
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  # Prometheus' own metrics, so there is something to start from
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # The application instance run locally from the IDE. Alloy discovers
+  # cluster pods only, so this one is scraped from here instead.
+  # The port matches the http profile in Properties/launchSettings.json.
+  # Expect this target to report DOWN whenever the app is not running.
+  - job_name: k8s-lab-local
+    # Prometheus 3.x supports UTF-8 in names and takes them from OTel as
+    # is, with dots: http.server.request.duration_seconds_count. When Alloy
+    # scrapes the cluster it asks for the escaped form and gets underscores.
+    # Without this line one metric would sit in the database under two
+    # names, and panels would break when switching env.
+    metric_name_escaping_scheme: underscores
+    static_configs:
+      - targets: ["host.docker.internal:5103"]
+        labels:
+          app: k8s-lab
+          env: local

@@ -1,0 +1,8 @@
+# Shared base for every environment.
+# Usually not applied directly — apply the overlays from ../overlays.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml

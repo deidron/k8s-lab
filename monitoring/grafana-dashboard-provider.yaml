@@ -1,0 +1,12 @@
+# Dashboards are provisioned from files rather than drawn in the UI.
+# Anything created in the UI lives only in the grafana-data volume and is
+# lost when that volume is recreated; files are versioned with the repo.
+apiVersion: 1
+
+providers:
+  - name: files
+    type: file
+    # not a default: Grafana checks every 10 seconds otherwise
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards

@@ -1,0 +1,166 @@
+// 1. discover every pod in the cluster
+discovery.kubernetes "pods" {
+  role = "pod"
+}
+
+// 2. map the internal __meta_* labels onto readable ones.
+//    Loki indexes labels, not log content, so every label here must have
+//    low cardinality. A request or user id would make the index unusable.
+discovery.relabel "pods" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label  = "namespace"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app"]
+    target_label  = "app"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label  = "pod"
+  }
+  // Node name is taken from Kubernetes metadata rather than parsed out
+  // of the log line: cardinality stays low and it enables per-node
+  // filtering.
+  rule {
+    source_labels = ["__meta_kubernetes_pod_node_name"]
+    target_label  = "node"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_container_name"]
+    target_label  = "container"
+  }
+  // Constant label: a rule without source_labels writes the replacement
+  // verbatim. Identifies the environment; set per cluster.
+  rule {
+    target_label = "env"
+    replacement  = "dev"
+  }
+}
+
+// 3. read logs through the API server — no access to node disks needed
+loki.source.kubernetes "pods" {
+  targets    = discovery.relabel.pods.output
+  forward_to = [loki.write.default.receiver]
+}
+
+// 4. ship to Loki, which runs in docker compose on the host.
+//    host.docker.internal resolves from inside pods on Docker Desktop;
+//    on another cluster this becomes the host's LAN address.
+loki.write "default" {
+  endpoint {
+    url = "http://host.docker.internal:3100/loki/api/v1/push"
+  }
+}
+
+// --- metrics ---
+
+// 5. keep only the pods marked with the annotation
+//    prometheus.io/scrape: "true" — the rest expose no /metrics
+discovery.relabel "metrics" {
+  targets = discovery.kubernetes.pods.targets
+
+  rule {
+    source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+    regex         = "true"
+    action        = "keep"
+  }
+  // replace the port with the one named in prometheus.io/port
+  rule {
+    source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+    regex         = "([^:]+)(?::\\d+)?;(\\d+)"
+    replacement   = "$1:$2"
+    target_label  = "__address__"
+  }
+  // and the path from prometheus.io/path
+  rule {
+    source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+    regex         = "(.+)"
+    target_label  = "__metrics_path__"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_namespace"]
+    target_label  = "namespace"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_label_app"]
+    target_label  = "app"
+  }
+  rule {
+    source_labels = ["__meta_kubernetes_pod_name"]
+    target_label  = "pod"
+  }
+  rule {
+    target_label = "env"
+    replacement  = "dev"
+  }
+}
+
+prometheus.scrape "pods" {
+  targets    = discovery.relabel.metrics.output
+  forward_to = [prometheus.remote_write.default.receiver]
+}
+
+// 6. write into Prometheus in compose. The receiver is enabled by the
+//    --web.enable-remote-write-receiver flag, set in docker-compose.yml
+prometheus.remote_write "default" {
+  endpoint {
+    url = "http://host.docker.internal:9090/api/v1/write"
+  }
+}
+
+// --- traces ---
+// The application sends here instead of straight to Tempo. In return the
+// spans get Kubernetes labels, the application no longer needs to know
+// the external host address, and there is a buffer if Tempo is down.
+
+// 7. accept OTLP from applications in the cluster
+otelcol.receiver.otlp "default" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  output {
+    traces = [otelcol.processor.k8sattributes.default.input]
+  }
+}
+
+// 8. enrich spans with pod metadata. The pod is identified by the IP
+//    address of the connection, hence pod_association from = "connection".
+otelcol.processor.k8sattributes "default" {
+  extract {
+    metadata = [
+      "k8s.namespace.name",
+      "k8s.pod.name",
+      "k8s.node.name",
+      "k8s.deployment.name",
+    ]
+  }
+  pod_association {
+    source {
+      from = "connection"
+    }
+  }
+  output {
+    traces = [otelcol.processor.batch.default.input]
+  }
+}
+
+// 9. batching: fewer network calls, and this is also where tail
+//    sampling would be enabled if it were needed
+otelcol.processor.batch "default" {
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+// 10. ship to Tempo in compose
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "host.docker.internal:4317"
+    tls {
+      insecure = true
+    }
+  }
+}

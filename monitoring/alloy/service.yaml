@@ -1,0 +1,14 @@
+# Trace intake point inside the cluster. Applications send here rather
+# than straight to Tempo — see OTLP_ENDPOINT in k8s/base/deployment.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: alloy
+  namespace: monitoring
+spec:
+  selector:
+    app: alloy
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc

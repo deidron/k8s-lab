@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-lab-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: k8s-lab
+  template:
+    metadata:
+      labels:
+        app: k8s-lab
+      annotations:
+        # Alloy selects pods for metric scraping by these annotations —
+        # a common convention, not something specific to Alloy.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: dotnet-container
+        # The tag must be bumped on every build. imagePullPolicy defaults
+        # to IfNotPresent for any tag other than latest, so a node that
+        # already holds this tag never fetches a new image and a rollout
+        # silently keeps running the previous build.
+        image: k8s-lab:v2
+        ports:
+        # containerPort is documentation only, it opens nothing.
+        # The name lets the Service reference the port symbolically.
+        - name: http
+          containerPort: 8080
+        env:
+        # The port is set explicitly: otherwise it comes from the base
+        # image default (ASPNETCORE_HTTP_PORTS=8080) and is nowhere
+        # visible in the repo — if that default changes, pods go silent.
+        - name: ASPNETCORE_HTTP_PORTS
+          value: "8080"
+        - name: KUBE_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        # Traces go to Alloy inside the cluster rather than straight to
+        # Tempo: it adds Kubernetes labels to spans and buffers delivery.
+        # The application does not need to know the external host address.
+        - name: OTLP_ENDPOINT
+          value: http://alloy.monitoring.svc.cluster.local:4317
+        # Ends up on spans as the env attribute. A local run without this
+        # variable yields "local"; the prod overlay overrides it to "prod".
+        - name: DEPLOY_ENV
+          value: dev

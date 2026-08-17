@@ -1,0 +1,73 @@
+# Observability backends for the development environment. They run outside
+# the cluster on purpose: recreating the cluster then costs no stored
+# history and no dashboards. The collector (Alloy) is the only part that
+# runs inside the cluster. Rationale and layout: README.md
+services:
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    command: -config.file=/etc/loki/config.yaml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yaml:/etc/loki/config.yaml:ro
+      - loki-data:/loki
+    restart: unless-stopped
+
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo
+    command: -config.file=/etc/tempo/tempo.yaml
+    ports:
+      - "3200:3200"   # API for Grafana
+      - "4317:4317"   # OTLP gRPC — the application sends traces here
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+      # without this flag Alloy cannot push metrics in
+      - --web.enable-remote-write-receiver
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    # Start order is enough: Grafana queries data sources lazily, when a
+    # dashboard is opened, so a Loki that is not up yet does not kill it.
+    depends_on:
+      - loki
+      - tempo
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      # No password — deliberate, this is a dev stand.
+      # Anonymous Admin is unacceptable in production.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana-datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana-dashboard-provider.yaml:/etc/grafana/provisioning/dashboards/provider.yaml:ro
+      - ./grafana-dashboards:/var/lib/grafana/dashboards:ro
+    restart: unless-stopped
+
+volumes:
+  loki-data:
+  grafana-data:
+  tempo-data:
+  prometheus-data:

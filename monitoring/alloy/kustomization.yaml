@@ -1,0 +1,17 @@
+#   kubectl apply -k monitoring/alloy
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - rbac.yaml
+  - deployment.yaml
+  - service.yaml
+
+# The ConfigMap name carries a hash of its content, so editing
+# config.alloy changes the reference in the Deployment and the pod
+# is recreated on its own.
+configMapGenerator:
+  - name: alloy-config
+    namespace: monitoring
+    files:
+      - config.alloy

@@ -1,0 +1,19 @@
+# Production setup on k3s (see ../../DEPLOY-PROD.md).
+# The Service is left at its default ClusterIP — an Ingress fronts it.
+#
+#   kubectl apply -k k8s/overlays/prod
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+# Registry image instead of the local k8s-lab tag.
+# Replace YOUR_LOGIN with your GitHub login and the tag with a release.
+images:
+  - name: k8s-lab
+    newName: ghcr.io/YOUR_LOGIN/k8s-lab
+    newTag: 1.0.0
+
+patches:
+  - path: deployment-patch.yaml

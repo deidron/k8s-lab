@@ -1,0 +1,22 @@
+# Local development on Docker Desktop.
+# The port is pinned by hand so the socat proxy does not break when the
+# Service is recreated — details in ../../DEV-WINDOWS.md
+#
+#   kubectl apply -k k8s/overlays/dev-nodeport
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+patches:
+  - target:
+      kind: Service
+      name: k8s-lab-service
+    patch: |
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: add
+        path: /spec/ports/0/nodePort
+        value: 32000

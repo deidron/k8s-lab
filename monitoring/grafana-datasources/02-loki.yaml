@@ -1,0 +1,25 @@
+# Loki references Tempo, so it is read second — see 01-backends.yaml
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    # inside the compose network services are reachable by name
+    url: http://loki:3100
+    isDefault: true
+    jsonData:
+      maxLines: 1000
+      # Turns the trace_id field of a JSON log line into a clickable link
+      # to the trace in Tempo. That is why TraceId is in nlog.config.
+      derivedFields:
+        - name: TraceID
+          matcherType: regex
+          matcherRegex: '"trace_id":"(\w+)"'
+          # The doubled dollar is required: Grafana expands environment
+          # variables in provisioning files, and a single ${...} would be
+          # eaten as an undefined variable — url would be stored empty and
+          # the link would open Tempo with an empty query.
+          url: '$${__value.raw}'
+          datasourceUid: tempo

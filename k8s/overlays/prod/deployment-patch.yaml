@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-lab-deployment
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    spec:
+      containers:
+      - name: dotnet-container
+        env:
+        - name: DEPLOY_ENV
+          value: prod
+        # The probes hit /healthz rather than a business route: it logs
+        # nothing and is excluded from tracing, so being called every few
+        # seconds forever costs neither log lines nor spans.
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            # No CPU limit on purpose: throttling in Kubernetes causes
+            # unexpected latency spikes in .NET applications.
+            memory: 512Mi

@@ -1,0 +1,152 @@
+{
+  "uid": "observability-pipeline",
+  "title": "Observability pipeline",
+  "tags": ["alloy", "infra"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Alloy config loaded",
+      "description": "0 means the applied config is broken and the agent is running the old one or did not start at all.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "NO", "color": "red" }, "1": { "text": "yes", "color": "green" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "targets": [{ "refId": "A", "instant": true, "expr": "min(alloy_config_last_load_successful)" }]
+    },
+    {
+      "type": "stat",
+      "title": "Config load failures",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "targets": [{ "refId": "A", "instant": true, "expr": "max(alloy_config_load_failures_total)" }]
+    },
+    {
+      "type": "stat",
+      "title": "Targets responding",
+      "description": "up == 1. The local target reads 0 while the app is not running from Visual Studio — that is expected.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [{ "refId": "A", "instant": true, "expr": "sum(up)" }]
+    },
+    {
+      "type": "stat",
+      "title": "Components in Alloy",
+      "description": "A step on the graph means the config changed.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [{ "refId": "A", "instant": true, "expr": "max(alloy_component_controller_running_components)" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Target availability",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "min": 0, "max": 1, "custom": { "fillOpacity": 10, "lineInterpolation": "stepAfter" } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{job}} {{instance}}",
+          "expr": "up"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Logs: sent and dropped",
+      "description": "A growing number of dropped entries means logs are being lost — usually Loki cannot keep up.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "sent",
+          "expr": "sum(rate(loki_write_sent_entries_total[5m]))"
+        },
+        {
+          "refId": "B",
+          "legendFormat": "DROPPED",
+          "expr": "sum(rate(loki_write_dropped_entries_total[5m]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Trace exporter queue",
+      "description": "Queue size approaching capacity means Tempo cannot keep up and spans will start being lost.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 5 } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "queued",
+          "expr": "sum(otelcol_exporter_queue_size)"
+        },
+        {
+          "refId": "B",
+          "legendFormat": "capacity",
+          "expr": "max(otelcol_exporter_queue_capacity)"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Spans sent to Tempo",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{exporter}}",
+          "expr": "sum by (exporter) (rate(otelcol_exporter_sent_spans_total[5m]))"
+        }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Alloy logs",
+      "description": "The agent's state is visible in metrics, but the reason for a failure is always here.",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 21 },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "range",
+          "expr": "{namespace=\"monitoring\", app=\"alloy\"} |~ \"(?i)error|warn\""
+        }
+      ]
+    }
+  ]
+}

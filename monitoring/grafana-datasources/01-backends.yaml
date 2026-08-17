@@ -1,0 +1,16 @@
+# Data sources with no cross-references. The file is prefixed with 01
+# because Grafana reads the provisioning directory alphabetically:
+# Tempo must exist before Loki references it through derivedFields
+# (otherwise it fails with "data source not found").
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    url: http://prometheus:9090
+
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    url: http://tempo:3200

@@ -1,0 +1,11 @@
+# Normalize everything to LF by default; Windows checkouts (core.autocrlf=true)
+# would otherwise re-inject CRLF, breaking things like husky's extensionless
+# hook shims (.husky/commit-msg, .husky/pre-commit — #!/bin/sh, no .sh
+# extension to catch them under a narrower per-extension rule). Verified no
+# issue running the package on Linux with LF XML either.
+* text=auto eol=lf
+
+# cmd.exe has real historical parsing issues with LF-only batch files - keep
+# these native Windows CRLF (matches .editorconfig's [*.{cmd,bat}] override).
+*.cmd eol=crlf
+*.bat eol=crlf
