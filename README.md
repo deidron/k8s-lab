@@ -144,6 +144,12 @@ The image tag is the commit SHA, never a moving tag. Deploying means putting
 that SHA into the `images:` block of the prod overlay, which also makes the
 running version traceable back to a commit.
 
+[`.github/dependabot.yml`](.github/dependabot.yml) raises weekly pull requests
+for NuGet packages, GitHub Actions and the Docker base images. Related packages
+are grouped, so an OpenTelemetry bump arrives as one PR rather than six — the
+set expects matching versions. Every such PR goes through the same checks
+before it can be merged.
+
 ## Conventions worth knowing
 
 **Manifests are built with kustomize.** The base holds what every environment

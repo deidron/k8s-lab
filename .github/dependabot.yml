@@ -1,0 +1,50 @@
+version: 2
+
+updates:
+  # NuGet is declared per project directory rather than once at the root:
+  # the solution is a .slnx, which Dependabot does not resolve yet.
+  - package-ecosystem: nuget
+    directory: /src/K8sLab
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # OpenTelemetry ships its packages as a set with matching versions;
+      # bumping them one at a time produces builds that never existed.
+      opentelemetry:
+        patterns:
+          - OpenTelemetry*
+      nlog:
+        patterns:
+          - NLog*
+
+  - package-ecosystem: nuget
+    directory: /tests/K8sLab.Tests
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      test-tooling:
+        patterns:
+          - xunit*
+          - Microsoft.NET.Test.Sdk
+          - Microsoft.AspNetCore.Mvc.Testing
+          - coverlet*
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # These move together often enough that separate PRs are just noise.
+      actions:
+        patterns:
+          - "*"
+
+  # Base images in the Dockerfile. The compose stack is left out on
+  # purpose: those services are pinned to latest, so there is no version
+  # for Dependabot to raise.
+  - package-ecosystem: docker
+    directory: /src/K8sLab
+    schedule:
+      interval: weekly
