@@ -14,7 +14,7 @@ existing ruleset is updated with `-X PUT .../rulesets/<id>`.
 ## main-protection.json
 
 The one worth applying now. `main` cannot be deleted or force-pushed, history
-stays linear, and both CI checks must pass — with
+stays linear, and all three CI checks must pass — with
 `strict_required_status_checks_policy`, which is what makes a stale branch
 unmergeable. Without it a pull request keeps a green check from before the base
 moved, and merges on evidence that no longer holds.
@@ -22,8 +22,11 @@ moved, and merges on evidence that no longer holds.
 The check names must match the job names in
 [../workflows/ci.yml](../workflows/ci.yml). A context that never reports blocks
 every merge permanently, so they are worth re-reading after any workflow rename.
-`Build and publish image` is deliberately not required: it is skipped on pull
-requests and would never report there.
+`Build image` is required now that it runs on every pull request; it was not
+while the job only ran on pushes, because a check that never reports on a pull
+request can never be satisfied. Nothing from
+[../workflows/release.yml](../workflows/release.yml) belongs here: it runs on a
+published release, long after any merge.
 
 There is no `pull_request` rule, so direct pushes to `main` still work. Add one
 to require pull requests for everything; `required_approving_review_count: 0`
@@ -44,8 +47,7 @@ already allowed. It becomes useful with more than one contributor.
 
 ## tag-protection.json
 
-Stops `v*` tags being deleted, moved or overwritten. Nothing to act on yet: the
-project has no release tags, since images are identified by commit SHA.
-
-Worth applying as soon as releases start being tagged. A tag that can be moved
-is a quiet way to make a published version point at different code.
+Stops `v*` tags being deleted, moved or overwritten. This one carries weight now
+that releases publish the image under their tag: the tag is what a deployment
+pins, so a tag that can be moved is a quiet way to make a published version
+point at different code.

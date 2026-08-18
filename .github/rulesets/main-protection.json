@@ -19,7 +19,8 @@
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           { "context": "Build and test" },
-          { "context": "Validate manifests" }
+          { "context": "Validate manifests" },
+          { "context": "Build image" }
         ]
       }
     }

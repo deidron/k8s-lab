@@ -191,10 +191,41 @@ free for this.
 
 ### 4.1 CI publishes it
 
-Every push to `main` builds the image and pushes it to
-`ghcr.io/deidron/k8s-lab:<commit-sha>` — see
-[../.github/workflows/ci.yml](../.github/workflows/ci.yml). Nothing to do by
-hand; find the SHA under Packages in the repository.
+Publishing a release builds the image and pushes it as both
+`ghcr.io/deidron/k8s-lab:<tag>` and `:<commit-sha>` — see
+[../.github/workflows/release.yml](../.github/workflows/release.yml). Pull
+requests and pushes to `main` build the image too, in
+[../.github/workflows/ci.yml](../.github/workflows/ci.yml), but never publish
+it, so a broken Dockerfile is caught before a release rather than during one.
+
+Cut the release from `main` once the change is merged:
+
+```bash
+gh release create v1.0.0 --target main --generate-notes
+```
+
+Nothing else to do by hand. The workflow appends the published image name to
+the release notes, so the value to deploy sits next to the release rather than
+in a run log; the names also appear under Packages in the repository.
+
+The tag has to sit on a commit that is already in `main` — CI checks this and
+fails otherwise, so a release cut from a branch by mistake cannot ship. Pushing
+a tag on its own does nothing at all.
+
+### 4.1.1 Check where the image came from
+
+The release also publishes an attestation: a signed statement that this exact
+image was built by that workflow from that commit. Anyone with write access to
+the registry can push an image by hand, and nothing about the name would look
+different — this is what tells the two apart. Run it before pinning a new tag:
+
+```bash
+gh attestation verify oci://ghcr.io/deidron/k8s-lab:v1.0.0 --repo deidron/k8s-lab
+```
+
+It reports the workflow and commit behind the image, and fails when there is no
+attestation to show. It says nothing about whether the code is any good: a
+compromised workflow would sign its output just as happily.
 
 To publish from the dev machine anyway — a first push before CI exists, or a
 build that is not in `main` — mind the build context: the Dockerfile expects
@@ -216,8 +247,9 @@ docker push ghcr.io/deidron/k8s-lab:1.0.0
 A tag that gets overwritten on every build is the main source of "which version
 is in production right now" questions — and worse, a node that already holds
 that tag never fetches the new image, so a rollout reports success while running
-the previous build. CI avoids this by tagging with the commit SHA. Do not use
-`latest` in production: you cannot roll back to it.
+the previous build. CI avoids this by publishing under the release tag and the
+commit SHA, and the `tag-protection` ruleset stops a `v*` tag being moved after
+the fact. Do not use `latest` in production: you cannot roll back to it.
 
 ### 4.3 The package is private by default
 

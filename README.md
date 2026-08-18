@@ -127,8 +127,11 @@ the service is reachable at the node address directly.
 
 ## Continuous integration
 
+The two workflows are split by what they are allowed to do: one checks, the
+other ships.
+
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to
-`main` and on pull requests:
+`main` and on pull requests, and publishes nothing:
 
 - **build and test** — six integration tests boot the application in memory and
   check the routes plus the observability wiring
@@ -136,13 +139,30 @@ the service is reachable at the node address directly.
   are parsed and the compose file is checked. A broken patch or a dashboard with
   invalid JSON otherwise surfaces only at apply time, or never: Grafana skips a
   dashboard it cannot parse without saying so
-- **build and publish the image** — pushed to GHCR as
-  `ghcr.io/deidron/k8s-lab:<commit-sha>`, and only on pushes to `main`; pull
-  requests stop after the checks
+- **build image** — built and thrown away, so a broken Dockerfile fails a pull
+  request instead of a release. It also keeps the build cache warm, which the
+  release reads
 
-The image tag is the commit SHA, never a moving tag. Deploying means putting
-that SHA into the `images:` block of the prod overlay, which also makes the
-running version traceable back to a commit.
+[`.github/workflows/release.yml`](.github/workflows/release.yml) runs when a
+release is published, and is the only thing that can push to GHCR:
+
+- **publish image** — as `ghcr.io/deidron/k8s-lab:<tag>` and `:<commit-sha>`,
+  with an attestation of the workflow and commit it was built from, which
+  `gh attestation verify` checks before a deployment pins it
+- **record the image in the release** — the published name is appended to the
+  release notes, so deploying does not mean reading a run log
+
+Both names point at the same image, and neither ever moves. Deploying means
+putting one of them into the `images:` block of the prod overlay, which also
+makes the running version traceable back to a commit.
+
+Pushing a tag on its own publishes nothing; the deliberate act is publishing
+the release. A release can still be cut from any branch, so the run checks that
+the tagged commit is reachable from `main` and fails when it is not — a release
+off an unreviewed branch would otherwise ship. Reaching `main` also means the
+commit already passed the checks, which is why the release does not repeat
+them. Jobs carry timeouts, and pull request runs are superseded by the next
+push rather than piling up.
 
 [`.github/dependabot.yml`](.github/dependabot.yml) raises weekly pull requests
 for NuGet packages, GitHub Actions and the Docker base images. Related packages
