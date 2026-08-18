@@ -45,6 +45,6 @@ already allowed. It becomes useful with more than one contributor.
 ## tag-protection.json
 
 Stops `v*` tags being deleted, moved or overwritten. This one carries weight now
-that CI publishes the image on a `v*` tag: the tag is what a deployment pins, so
-a tag that can be moved is a quiet way to make a published version point at
-different code.
+that releases publish the image under their tag: the tag is what a deployment
+pins, so a tag that can be moved is a quiet way to make a published version
+point at different code.

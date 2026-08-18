@@ -191,21 +191,26 @@ free for this.
 
 ### 4.1 CI publishes it
 
-Pushing a `v*` tag builds the image and publishes it as both
+Publishing a release builds the image and pushes it as both
 `ghcr.io/deidron/k8s-lab:<tag>` and `:<commit-sha>` — see
-[../.github/workflows/ci.yml](../.github/workflows/ci.yml). Pull requests and
-pushes to `main` build the image too, but do not publish it, so a broken
-Dockerfile is caught before a release rather than during one.
+[../.github/workflows/release.yml](../.github/workflows/release.yml). Pull
+requests and pushes to `main` build the image too, in
+[../.github/workflows/ci.yml](../.github/workflows/ci.yml), but never publish
+it, so a broken Dockerfile is caught before a release rather than during one.
+
+Cut the release from `main` once the change is merged:
 
 ```bash
-git tag v1.0.0 && git push origin v1.0.0
+gh release create v1.0.0 --target main --generate-notes
 ```
 
-Nothing else to do by hand; the published names appear under Packages in the
-repository.
+Nothing else to do by hand. The workflow appends the published image name to
+the release notes, so the value to deploy sits next to the release rather than
+in a run log; the names also appear under Packages in the repository.
 
 The tag has to sit on a commit that is already in `main` — CI checks this and
-fails otherwise, so a tag put on a branch by mistake cannot become a release.
+fails otherwise, so a release cut from a branch by mistake cannot ship. Pushing
+a tag on its own does nothing at all.
 
 To publish from the dev machine anyway — a first push before CI exists, or a
 build that is not in `main` — mind the build context: the Dockerfile expects

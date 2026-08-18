@@ -3,16 +3,13 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
 
-# The image job needs to write packages; everything else only reads.
 permissions:
   contents: read
 
 # A new push to a pull request makes the running checks pointless, and public
-# repositories run on shared minutes. Never cancel a tag or a main build: those
-# publish, and a half-finished publish is worse than a slow one.
+# repositories run on shared minutes. Runs on main are left alone.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -72,78 +69,30 @@ jobs:
       - name: Validate compose file
         run: docker compose -f monitoring/docker-compose.yml config --quiet
 
+  # Nothing here publishes — see release.yml for that. Building anyway means a
+  # broken Dockerfile fails a pull request instead of a release, and it keeps
+  # the build cache warm: releases are rare enough that the cache would
+  # otherwise have expired by the time one is cut.
   image:
-    name: Build and publish image
+    name: Build image
     needs: [test, manifests]
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    permissions:
-      contents: read
-      packages: write
-    env:
-      # Only a v* tag publishes. Every other run still builds the image, so a
-      # broken Dockerfile fails the pull request instead of the release.
-      PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') }}
     steps:
-      # The ancestry check below needs history; the default shallow fetch
-      # brings a single commit and leaves nothing to compare against.
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      # A tag can be put on any commit, including one on a branch that never
-      # went through review — pushing it would publish that code. Nothing in
-      # the tag ruleset covers this: it protects a tag from being moved, not
-      # from being placed. Fail loudly rather than quietly skipping the push,
-      # because a green run with no image published looks like a release.
-      - name: Refuse to publish a commit that is not on main
-        if: env.PUBLISH == 'true'
-        run: |
-          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "::error::$GITHUB_REF_NAME points at a commit that is not on main"
-            exit 1
-          fi
 
       # The default docker driver cannot export a build cache. Buildx sets
       # up a docker-container builder, which can — without it the cache-to
       # step below fails the job.
       - uses: docker/setup-buildx-action@v4
 
-      - uses: docker/login-action@v4
-        if: env.PUBLISH == 'true'
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Tagged by release tag and commit SHA, never a moving tag: a reused
-      # tag makes a rollout silently keep the previous build, and `latest`
-      # cannot be rolled back to. The tag ruleset keeps v* immutable.
-      #
-      # A pull request ref name ("3/merge") is not a valid image tag, so the
-      # builds that do not publish get a throwaway local one instead.
-      - name: Collect image tags
-        id: tags
-        run: |
-          # A multi-line output needs the delimiter form; a bare newline in
-          # the value is dropped.
-          {
-            echo 'list<<EOF'
-            if [ "$PUBLISH" = "true" ]; then
-              echo "ghcr.io/$GITHUB_REPOSITORY:$GITHUB_REF_NAME"
-              echo "ghcr.io/$GITHUB_REPOSITORY:$GITHUB_SHA"
-            else
-              echo 'k8slab:ci'
-            fi
-            echo EOF
-          } >> "$GITHUB_OUTPUT"
-
+      # The tag is local and thrown away with the runner; a pull request ref
+      # name ("3/merge") would not be a valid one anyway.
       - uses: docker/build-push-action@v7
         with:
           context: src/K8sLab
           file: src/K8sLab/Dockerfile
-          push: ${{ env.PUBLISH == 'true' }}
-          tags: ${{ steps.tags.outputs.list }}
+          push: false
+          tags: k8slab:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
