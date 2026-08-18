@@ -24,9 +24,8 @@ jobs:
     permissions:
       contents: read
       packages: write
-      # For the attestation at the end: one to record it, one for the storage
-      # record it writes, and the OIDC token that proves the claim came from
-      # this run rather than from someone repeating it afterwards.
+      # For the attestation at the end: two to record it, and the OIDC token
+      # that proves the claim came from this run.
       attestations: write
       artifact-metadata: write
       id-token: write
@@ -51,8 +50,7 @@ jobs:
         run: echo "sha=$(git rev-parse "$RELEASE_TAG^{commit}")" >> "$GITHUB_OUTPUT"
 
       # A release can be cut from any branch, and its tag can sit on a commit
-      # that never went through review — publishing it would ship that code.
-      # Neither the release event nor the tag ruleset covers this: the ruleset
+      # that never went through review. Nothing else covers this: the ruleset
       # protects a tag from being moved, not from being placed.
       #
       # Reaching main also means the commit already passed the checks in
@@ -103,29 +101,20 @@ jobs:
           file: src/K8sLab/Dockerfile
           push: true
           tags: ${{ steps.tags.outputs.list }}
-          # Standard OCI metadata, carried by the image itself rather than by
-          # whatever wrote it down elsewhere. `source` is also what GHCR reads
-          # to attach the package to this repository, which is what puts the
-          # README on the package page and survives the package being
-          # recreated.
+          # Standard OCI metadata, carried by the image rather than written
+          # down beside it. GHCR reads `source` to attach the package to this
+          # repository, which survives the package being deleted and remade.
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ steps.commit.outputs.sha }}
             org.opencontainers.image.version=${{ github.event.release.tag_name }}
           cache-from: type=gha
 
-      # Says, in a form that can be checked, that this digest came out of this
-      # workflow from this commit — the question that matters when anyone with
-      # write access to the registry could have put an image there by hand. It
-      # attests where the image came from, not that the code is any good: a
-      # compromised workflow would produce a valid attestation too.
-      #
-      # Named by digest rather than by tag, since the tag is a label that the
-      # attestation would outlive. Verified at deploy time — see
-      # k8s/DEPLOY-PROD.md.
-      # With no predicate given this attests SLSA build provenance, which is
-      # the whole reason it is here. attest-build-provenance would do the same
-      # thing — it is a wrapper over this action and points new callers here.
+      # With no predicate this attests SLSA build provenance: a signed record
+      # that this digest came out of this workflow at this commit, which is
+      # what tells a published image apart from one pushed by hand. Bound to
+      # the digest rather than the tag, which it outlives. Checked at deploy
+      # time — see k8s/DEPLOY-PROD.md.
       - uses: actions/attest@v4
         with:
           subject-name: ghcr.io/${{ github.repository }}
