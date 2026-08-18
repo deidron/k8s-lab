@@ -212,6 +212,21 @@ The tag has to sit on a commit that is already in `main` — CI checks this and
 fails otherwise, so a release cut from a branch by mistake cannot ship. Pushing
 a tag on its own does nothing at all.
 
+### 4.1.1 Check where the image came from
+
+The release also publishes an attestation: a signed statement that this exact
+image was built by that workflow from that commit. Anyone with write access to
+the registry can push an image by hand, and nothing about the name would look
+different — this is what tells the two apart. Run it before pinning a new tag:
+
+```bash
+gh attestation verify oci://ghcr.io/deidron/k8s-lab:v1.0.0 --repo deidron/k8s-lab
+```
+
+It reports the workflow and commit behind the image, and fails when there is no
+attestation to show. It says nothing about whether the code is any good: a
+compromised workflow would sign its output just as happily.
+
 To publish from the dev machine anyway — a first push before CI exists, or a
 build that is not in `main` — mind the build context: the Dockerfile expects
 `src/K8sLab`, not the repository root.

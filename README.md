@@ -146,7 +146,9 @@ other ships.
 [`.github/workflows/release.yml`](.github/workflows/release.yml) runs when a
 release is published, and is the only thing that can push to GHCR:
 
-- **publish image** — as `ghcr.io/deidron/k8s-lab:<tag>` and `:<commit-sha>`
+- **publish image** — as `ghcr.io/deidron/k8s-lab:<tag>` and `:<commit-sha>`,
+  with an attestation of the workflow and commit it was built from, which
+  `gh attestation verify` checks before a deployment pins it
 - **record the image in the release** — the published name is appended to the
   release notes, so deploying does not mean reading a run log
 

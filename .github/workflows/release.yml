@@ -24,6 +24,10 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # For the attestation at the end: one to record it, one for the OIDC
+      # token that proves the claim came from this run.
+      attestations: write
+      id-token: write
     env:
       RELEASE_TAG: ${{ github.event.release.tag_name }}
     steps:
@@ -91,6 +95,7 @@ jobs:
       # not push cache entries of its own, or a rare release would be writing
       # what the frequent builds already maintain.
       - uses: docker/build-push-action@v7
+        id: build
         with:
           context: src/K8sLab
           file: src/K8sLab/Dockerfile
@@ -106,6 +111,21 @@ jobs:
             org.opencontainers.image.revision=${{ steps.commit.outputs.sha }}
             org.opencontainers.image.version=${{ github.event.release.tag_name }}
           cache-from: type=gha
+
+      # Says, in a form that can be checked, that this digest came out of this
+      # workflow from this commit — the question that matters when anyone with
+      # write access to the registry could have put an image there by hand. It
+      # attests where the image came from, not that the code is any good: a
+      # compromised workflow would produce a valid attestation too.
+      #
+      # Named by digest rather than by tag, since the tag is a label that the
+      # attestation would outlive. Verified at deploy time — see
+      # k8s/DEPLOY-PROD.md.
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
   # Which image to deploy is otherwise knowable only by opening the run log.
   # Writing it into the release body puts it next to the notes, ready to be
