@@ -36,6 +36,14 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
           fetch-depth: 0
 
+      # Named rather than taken from HEAD, so that editing the checkout above
+      # cannot quietly point the rest of this at a different commit. The
+      # ^{commit} peels the tag: on an annotated one a bare rev-parse returns
+      # the SHA of the tag object, which is not a commit and names no build.
+      - name: Resolve the tag to a commit
+        id: commit
+        run: echo "sha=$(git rev-parse "$RELEASE_TAG^{commit}")" >> "$GITHUB_OUTPUT"
+
       # A release can be cut from any branch, and its tag can sit on a commit
       # that never went through review — publishing it would ship that code.
       # Neither the release event nor the tag ruleset covers this: the ruleset
@@ -43,21 +51,17 @@ jobs:
       #
       # Reaching main also means the commit already passed the checks in
       # ci.yml, which is why they are not repeated here.
-      # The tag is named rather than taken from HEAD, so that editing the
-      # checkout above cannot quietly point this at a different commit. The
-      # ^{commit} peels it: on an annotated tag a bare rev-parse returns the
-      # SHA of the tag object, which is not a commit and names no build.
       - name: Refuse to publish a commit that is not on main
         run: |
           git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
-          if ! git merge-base --is-ancestor "$(git rev-parse "$RELEASE_TAG^{commit}")" origin/main; then
+          if ! git merge-base --is-ancestor "${{ steps.commit.outputs.sha }}" origin/main; then
             echo "::error::$RELEASE_TAG points at a commit that is not on main"
             exit 1
           fi
 
-      # The default docker driver cannot export a build cache. Buildx sets
-      # up a docker-container builder, which can — without it the cache-to
-      # step below fails the job.
+      # The default docker driver has no access to the build cache at all, so
+      # even reading the entries ci.yml wrote needs the docker-container
+      # builder that buildx sets up.
       - uses: docker/setup-buildx-action@v4
 
       - uses: docker/login-action@v4
@@ -71,9 +75,9 @@ jobs:
       # be rolled back to. The tag ruleset keeps v* immutable.
       - name: Collect image tags
         id: tags
+        env:
+          SHA: ${{ steps.commit.outputs.sha }}
         run: |
-          SHA=$(git rev-parse "$RELEASE_TAG^{commit}")
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           # A multi-line output needs the delimiter form; a bare newline in
           # the value is dropped.
           {
@@ -99,7 +103,7 @@ jobs:
           # recreated.
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ steps.tags.outputs.sha }}
+            org.opencontainers.image.revision=${{ steps.commit.outputs.sha }}
             org.opencontainers.image.version=${{ github.event.release.tag_name }}
           cache-from: type=gha
 
@@ -123,9 +127,15 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           REPO: ${{ github.repository }}
         run: |
+          # Re-running a failed release run lands here a second time, so the
+          # block this wrote before is cut off first. The marker is an HTML
+          # comment, which the release page does not render.
+          MARKER='<!-- published-image -->'
+          gh release view "$RELEASE_TAG" --repo "$REPO" --json body --jq .body \
+            | sed "\|$MARKER|,\$d" > notes.md
           {
-            gh release view "$RELEASE_TAG" --repo "$REPO" --json body --jq .body
-            printf '\n\n---\n\nDeployed image:\n\n```\nghcr.io/%s:%s\n```\n' \
+            echo "$MARKER"
+            printf '\n---\n\nDeployed image:\n\n```\nghcr.io/%s:%s\n```\n' \
               "$REPO" "$RELEASE_TAG"
-          } > notes.md
+          } >> notes.md
           gh release edit "$RELEASE_TAG" --repo "$REPO" --notes-file notes.md
