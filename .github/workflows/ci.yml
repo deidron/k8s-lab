@@ -10,10 +10,21 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request makes the running checks pointless, and public
+# repositories run on shared minutes. Never cancel a tag or a main build: those
+# publish, and a half-finished publish is worse than a slow one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     name: Build and test
     runs-on: ubuntu-latest
+    # Every job runs code from the pull request, so the default six-hour
+    # ceiling is the wrong shape: a hang, or a runner put to other use,
+    # should die in minutes.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
@@ -33,6 +44,7 @@ jobs:
   manifests:
     name: Validate manifests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -64,6 +76,7 @@ jobs:
     name: Build and publish image
     needs: [test, manifests]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: write
@@ -72,7 +85,25 @@ jobs:
       # broken Dockerfile fails the pull request instead of the release.
       PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') }}
     steps:
+      # The ancestry check below needs history; the default shallow fetch
+      # brings a single commit and leaves nothing to compare against.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # A tag can be put on any commit, including one on a branch that never
+      # went through review — pushing it would publish that code. Nothing in
+      # the tag ruleset covers this: it protects a tag from being moved, not
+      # from being placed. Fail loudly rather than quietly skipping the push,
+      # because a green run with no image published looks like a release.
+      - name: Refuse to publish a commit that is not on main
+        if: env.PUBLISH == 'true'
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME points at a commit that is not on main"
+            exit 1
+          fi
 
       # The default docker driver cannot export a build cache. Buildx sets
       # up a docker-container builder, which can — without it the cache-to

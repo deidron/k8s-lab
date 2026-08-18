@@ -204,6 +204,9 @@ git tag v1.0.0 && git push origin v1.0.0
 Nothing else to do by hand; the published names appear under Packages in the
 repository.
 
+The tag has to sit on a commit that is already in `main` — CI checks this and
+fails otherwise, so a tag put on a branch by mistake cannot become a release.
+
 To publish from the dev machine anyway — a first push before CI exists, or a
 build that is not in `main` — mind the build context: the Dockerfile expects
 `src/K8sLab`, not the repository root.

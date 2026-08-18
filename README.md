@@ -128,7 +128,7 @@ the service is reachable at the node address directly.
 ## Continuous integration
 
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to
-`main` and on pull requests:
+`main`, on `v*` tags and on pull requests:
 
 - **build and test** — six integration tests boot the application in memory and
   check the routes plus the observability wiring
@@ -143,6 +143,11 @@ the service is reachable at the node address directly.
 Both names point at the same image, and neither ever moves. Deploying means
 putting one of them into the `images:` block of the prod overlay, which also
 makes the running version traceable back to a commit.
+
+A tag can be placed on any commit, so publishing first checks that the tagged
+commit is reachable from `main` and fails the run when it is not — a tag on an
+unreviewed branch would otherwise ship as a release. Jobs carry timeouts, and
+pull request runs are superseded by the next push rather than piling up.
 
 [`.github/dependabot.yml`](.github/dependabot.yml) raises weekly pull requests
 for NuGet packages, GitHub Actions and the Docker base images. Related packages
