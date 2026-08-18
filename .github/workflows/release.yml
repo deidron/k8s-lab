@@ -24,9 +24,11 @@ jobs:
     permissions:
       contents: read
       packages: write
-      # For the attestation at the end: one to record it, one for the OIDC
-      # token that proves the claim came from this run.
+      # For the attestation at the end: one to record it, one for the storage
+      # record it writes, and the OIDC token that proves the claim came from
+      # this run rather than from someone repeating it afterwards.
       attestations: write
+      artifact-metadata: write
       id-token: write
     env:
       RELEASE_TAG: ${{ github.event.release.tag_name }}
@@ -121,7 +123,10 @@ jobs:
       # Named by digest rather than by tag, since the tag is a label that the
       # attestation would outlive. Verified at deploy time — see
       # k8s/DEPLOY-PROD.md.
-      - uses: actions/attest-build-provenance@v4
+      # With no predicate given this attests SLSA build provenance, which is
+      # the whole reason it is here. attest-build-provenance would do the same
+      # thing — it is a wrapper over this action and points new callers here.
+      - uses: actions/attest@v4
         with:
           subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.build.outputs.digest }}
