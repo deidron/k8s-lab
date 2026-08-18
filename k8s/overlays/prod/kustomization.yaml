@@ -8,12 +8,16 @@ kind: Kustomization
 resources:
   - ../../base
 
-# Registry image instead of the local k8s-lab tag.
-# Replace YOUR_LOGIN with your GitHub login and the tag with a release.
+# Registry image instead of the locally built one. CI publishes every push
+# to main as ghcr.io/deidron/k8s-lab:<commit-sha>; deploying means putting
+# that SHA here, which keeps the running version traceable to a commit.
 images:
   - name: k8s-lab
-    newName: ghcr.io/YOUR_LOGIN/k8s-lab
-    newTag: 1.0.0
+    newName: ghcr.io/deidron/k8s-lab
+    # Which build to run is a per-deployment decision, so this stays a
+    # placeholder on purpose: it fails loudly instead of pulling something
+    # unintended. Copy the SHA of the commit CI built.
+    newTag: REPLACE_WITH_COMMIT_SHA
 
 patches:
   - path: deployment-patch.yaml

@@ -189,36 +189,47 @@ Right now the image exists only locally in Docker Desktop. The new VM has
 nowhere to get it from, so a registry is needed. GitHub Container Registry is
 free for this.
 
-### 4.1 Build and publish
+### 4.1 CI publishes it
 
-On the dev machine. Mind the build context — the Dockerfile expects
+Every push to `main` builds the image and pushes it to
+`ghcr.io/deidron/k8s-lab:<commit-sha>` — see
+[../.github/workflows/ci.yml](../.github/workflows/ci.yml). Nothing to do by
+hand; find the SHA under Packages in the repository.
+
+To publish from the dev machine anyway — a first push before CI exists, or a
+build that is not in `main` — mind the build context: the Dockerfile expects
 `src/K8sLab`, not the repository root.
 
 ```bash
-docker build -f src/K8sLab/Dockerfile -t ghcr.io/YOUR_LOGIN/k8s-lab:1.0.0 src/K8sLab
+docker build -f src/K8sLab/Dockerfile -t ghcr.io/deidron/k8s-lab:1.0.0 src/K8sLab
 ```
 
 Log in with a Personal Access Token that has `write:packages`:
 
 ```bash
-echo YOUR_PAT | docker login ghcr.io -u YOUR_LOGIN --password-stdin
-docker push ghcr.io/YOUR_LOGIN/k8s-lab:1.0.0
+echo YOUR_PAT | docker login ghcr.io -u deidron --password-stdin
+docker push ghcr.io/deidron/k8s-lab:1.0.0
 ```
 
-### 4.2 Versions instead of a reused tag
+### 4.2 Tags are never reused
 
 A tag that gets overwritten on every build is the main source of "which version
-is in production right now" questions. Use semantic versions (`1.0.0`, `1.0.1`)
-or a short commit hash. Do not use `latest` in production: you cannot roll back
-to it.
+is in production right now" questions — and worse, a node that already holds
+that tag never fetches the new image, so a rollout reports success while running
+the previous build. CI avoids this by tagging with the commit SHA. Do not use
+`latest` in production: you cannot roll back to it.
 
-### 4.3 Access to a private package
+### 4.3 The package is private by default
 
-If the GHCR package is private, the cluster needs a secret:
+A new GHCR package is private even when the repository is public — this catches
+people out, because the repository being public suggests the image is too. The
+simplest fix is to make the package public in its settings.
+
+Otherwise the cluster needs a pull secret:
 
 ```bash
 kubectl create secret docker-registry ghcr \
-  --docker-server=ghcr.io --docker-username=YOUR_LOGIN --docker-password=YOUR_PAT
+  --docker-server=ghcr.io --docker-username=deidron --docker-password=YOUR_PAT
 ```
 
 and `imagePullSecrets: [{name: ghcr}]` in the manifest. For a learning project
@@ -235,7 +246,11 @@ limits (one service can eat all memory and take the node down with it), and an
 image from a registry rather than a locally built one.
 
 All of that is already assembled in the `k8s/overlays/prod` overlay — no extra
-file to create, just put your GitHub login into `kustomization.yaml`.
+file to create. The one value to fill in is `newTag` in `kustomization.yaml`:
+the SHA of the commit whose image you want to run. It ships as a placeholder on
+purpose, so a forgotten edit fails loudly instead of pulling something
+unintended.
+
 What the overlay adds on top of the base:
 
 - **the registry image** in place of the locally built one, substituted by the
