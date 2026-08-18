@@ -43,10 +43,14 @@ jobs:
       #
       # Reaching main also means the commit already passed the checks in
       # ci.yml, which is why they are not repeated here.
+      # The tag is named rather than taken from HEAD, so that editing the
+      # checkout above cannot quietly point this at a different commit. The
+      # ^{commit} peels it: on an annotated tag a bare rev-parse returns the
+      # SHA of the tag object, which is not a commit and names no build.
       - name: Refuse to publish a commit that is not on main
         run: |
           git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
-          if ! git merge-base --is-ancestor "$(git rev-parse HEAD)" origin/main; then
+          if ! git merge-base --is-ancestor "$(git rev-parse "$RELEASE_TAG^{commit}")" origin/main; then
             echo "::error::$RELEASE_TAG points at a commit that is not on main"
             exit 1
           fi
@@ -73,7 +77,7 @@ jobs:
           {
             echo 'list<<EOF'
             echo "ghcr.io/$GITHUB_REPOSITORY:$RELEASE_TAG"
-            echo "ghcr.io/$GITHUB_REPOSITORY:$(git rev-parse HEAD)"
+            echo "ghcr.io/$GITHUB_REPOSITORY:$(git rev-parse "$RELEASE_TAG^{commit}")"
             echo EOF
           } >> "$GITHUB_OUTPUT"
 
