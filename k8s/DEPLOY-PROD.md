@@ -191,10 +191,18 @@ free for this.
 
 ### 4.1 CI publishes it
 
-Every push to `main` builds the image and pushes it to
-`ghcr.io/deidron/k8s-lab:<commit-sha>` — see
-[../.github/workflows/ci.yml](../.github/workflows/ci.yml). Nothing to do by
-hand; find the SHA under Packages in the repository.
+Pushing a `v*` tag builds the image and publishes it as both
+`ghcr.io/deidron/k8s-lab:<tag>` and `:<commit-sha>` — see
+[../.github/workflows/ci.yml](../.github/workflows/ci.yml). Pull requests and
+pushes to `main` build the image too, but do not publish it, so a broken
+Dockerfile is caught before a release rather than during one.
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+Nothing else to do by hand; the published names appear under Packages in the
+repository.
 
 To publish from the dev machine anyway — a first push before CI exists, or a
 build that is not in `main` — mind the build context: the Dockerfile expects
@@ -216,8 +224,9 @@ docker push ghcr.io/deidron/k8s-lab:1.0.0
 A tag that gets overwritten on every build is the main source of "which version
 is in production right now" questions — and worse, a node that already holds
 that tag never fetches the new image, so a rollout reports success while running
-the previous build. CI avoids this by tagging with the commit SHA. Do not use
-`latest` in production: you cannot roll back to it.
+the previous build. CI avoids this by publishing under the release tag and the
+commit SHA, and the `tag-protection` ruleset stops a `v*` tag being moved after
+the fact. Do not use `latest` in production: you cannot roll back to it.
 
 ### 4.3 The package is private by default
 

@@ -136,13 +136,13 @@ the service is reachable at the node address directly.
   are parsed and the compose file is checked. A broken patch or a dashboard with
   invalid JSON otherwise surfaces only at apply time, or never: Grafana skips a
   dashboard it cannot parse without saying so
-- **build and publish the image** — pushed to GHCR as
-  `ghcr.io/deidron/k8s-lab:<commit-sha>`, and only on pushes to `main`; pull
-  requests stop after the checks
+- **build and publish the image** — every run builds it, so a broken Dockerfile
+  fails the pull request rather than the release, but only a `v*` tag pushes it
+  to GHCR, as `ghcr.io/deidron/k8s-lab:<tag>` and `:<commit-sha>`
 
-The image tag is the commit SHA, never a moving tag. Deploying means putting
-that SHA into the `images:` block of the prod overlay, which also makes the
-running version traceable back to a commit.
+Both names point at the same image, and neither ever moves. Deploying means
+putting one of them into the `images:` block of the prod overlay, which also
+makes the running version traceable back to a commit.
 
 [`.github/dependabot.yml`](.github/dependabot.yml) raises weekly pull requests
 for NuGet packages, GitHub Actions and the Docker base images. Related packages

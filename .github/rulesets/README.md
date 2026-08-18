@@ -44,8 +44,7 @@ already allowed. It becomes useful with more than one contributor.
 
 ## tag-protection.json
 
-Stops `v*` tags being deleted, moved or overwritten. Nothing to act on yet: the
-project has no release tags, since images are identified by commit SHA.
-
-Worth applying as soon as releases start being tagged. A tag that can be moved
-is a quiet way to make a published version point at different code.
+Stops `v*` tags being deleted, moved or overwritten. This one carries weight now
+that CI publishes the image on a `v*` tag: the tag is what a deployment pins, so
+a tag that can be moved is a quiet way to make a published version point at
+different code.

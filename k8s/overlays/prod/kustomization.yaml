@@ -8,16 +8,17 @@ kind: Kustomization
 resources:
   - ../../base
 
-# Registry image instead of the locally built one. CI publishes every push
-# to main as ghcr.io/deidron/k8s-lab:<commit-sha>; deploying means putting
-# that SHA here, which keeps the running version traceable to a commit.
+# Registry image instead of the locally built one. CI publishes only on a
+# v* tag, as both ghcr.io/deidron/k8s-lab:<tag> and :<commit-sha> — the same
+# image under two names. Deploying means putting one of them here, which
+# keeps the running version traceable to a commit.
 images:
   - name: k8s-lab
     newName: ghcr.io/deidron/k8s-lab
     # Which build to run is a per-deployment decision, so this stays a
     # placeholder on purpose: it fails loudly instead of pulling something
-    # unintended. Copy the SHA of the commit CI built.
-    newTag: REPLACE_WITH_COMMIT_SHA
+    # unintended. Copy the release tag, or the SHA it was built from.
+    newTag: REPLACE_WITH_RELEASE_TAG
 
 patches:
   - path: deployment-patch.yaml
