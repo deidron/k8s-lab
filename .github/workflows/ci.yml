@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The image job needs to write packages; everything else only reads.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+  manifests:
+    name: Validate manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-kubectl@v4
+
+      # A broken patch or a renamed resource only shows up at apply time
+      # otherwise — by then the cluster is already half-updated.
+      - name: Render kustomize overlays
+        run: |
+          for overlay in dev-nodeport dev-loadbalancer prod; do
+            echo "rendering k8s/overlays/$overlay"
+            kubectl kustomize "k8s/overlays/$overlay" > /dev/null
+          done
+          echo "rendering monitoring/alloy"
+          kubectl kustomize monitoring/alloy > /dev/null
+
+      # Grafana silently ignores a dashboard whose JSON does not parse.
+      - name: Validate dashboard JSON
+        run: |
+          for file in monitoring/grafana-dashboards/*.json; do
+            echo "checking $file"
+            jq empty "$file"
+          done
+
+      - name: Validate compose file
+        run: docker compose -f monitoring/docker-compose.yml config --quiet
+
+  image:
+    name: Build and publish image
+    needs: [test, manifests]
+    # Pull requests build the image but do not publish it.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tagged by commit SHA, never a moving tag: a reused tag makes a
+      # rollout silently keep the previous build, and `latest` cannot be
+      # rolled back to.
+      - uses: docker/build-push-action@v6
+        with:
+          context: src/K8sLab
+          file: src/K8sLab/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

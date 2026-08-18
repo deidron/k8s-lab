@@ -1,5 +1,7 @@
 # k8s-lab
 
+[![CI](https://github.com/deidron/k8s-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/deidron/k8s-lab/actions/workflows/ci.yml)
+
 An ASP.NET Core service wired end to end for observability — structured logs,
 metrics and distributed tracing in Loki, Prometheus and Tempo. The same
 backends serve both the Kubernetes deployment, where Grafana Alloy collects
@@ -122,6 +124,25 @@ Cloudflare Tunnel.
 Nothing from the Windows development setup carries over — the socat proxy and
 the pinned NodePort exist only to work around Docker Desktop networking. On k3s
 the service is reachable at the node address directly.
+
+## Continuous integration
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every push to
+`main` and on pull requests:
+
+- **build and test** — six integration tests boot the application in memory and
+  check the routes plus the observability wiring
+- **validate manifests** — every kustomize overlay is rendered, both dashboards
+  are parsed and the compose file is checked. A broken patch or a dashboard with
+  invalid JSON otherwise surfaces only at apply time, or never: Grafana skips a
+  dashboard it cannot parse without saying so
+- **build and publish the image** — pushed to GHCR as
+  `ghcr.io/deidron/k8s-lab:<commit-sha>`, and only on pushes to `main`; pull
+  requests stop after the checks
+
+The image tag is the commit SHA, never a moving tag. Deploying means putting
+that SHA into the `images:` block of the prod overlay, which also makes the
+running version traceable back to a commit.
 
 ## Conventions worth knowing
 
