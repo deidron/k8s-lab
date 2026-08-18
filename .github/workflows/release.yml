@@ -72,12 +72,14 @@ jobs:
       - name: Collect image tags
         id: tags
         run: |
+          SHA=$(git rev-parse "$RELEASE_TAG^{commit}")
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           # A multi-line output needs the delimiter form; a bare newline in
           # the value is dropped.
           {
             echo 'list<<EOF'
             echo "ghcr.io/$GITHUB_REPOSITORY:$RELEASE_TAG"
-            echo "ghcr.io/$GITHUB_REPOSITORY:$(git rev-parse "$RELEASE_TAG^{commit}")"
+            echo "ghcr.io/$GITHUB_REPOSITORY:$SHA"
             echo EOF
           } >> "$GITHUB_OUTPUT"
 
@@ -90,6 +92,15 @@ jobs:
           file: src/K8sLab/Dockerfile
           push: true
           tags: ${{ steps.tags.outputs.list }}
+          # Standard OCI metadata, carried by the image itself rather than by
+          # whatever wrote it down elsewhere. `source` is also what GHCR reads
+          # to attach the package to this repository, which is what puts the
+          # README on the package page and survives the package being
+          # recreated.
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.tags.outputs.sha }}
+            org.opencontainers.image.version=${{ github.event.release.tag_name }}
           cache-from: type=gha
 
   # Which image to deploy is otherwise knowable only by opening the run log.
