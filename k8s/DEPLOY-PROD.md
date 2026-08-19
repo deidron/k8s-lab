@@ -296,7 +296,13 @@ What the overlay adds on top of the base:
 - **`DEPLOY_ENV: prod`**, which surfaces as the `env` attribute on traces
 
 Nothing else changes: the Service stays ClusterIP and the port stays named
-`http`. Render it to see the exact result:
+`http`. Note what is *not* on this list: the pod runs as a non-root user with a
+read-only root filesystem, no capabilities and no route to privilege
+escalation — but that comes from the base, so the dev overlays are held to the
+same terms. A setting that only production gets is a setting production
+discovers the hard way.
+
+Render it to see the exact result:
 
 ```bash
 kubectl kustomize k8s/overlays/prod

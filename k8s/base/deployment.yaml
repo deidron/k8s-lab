@@ -18,6 +18,15 @@ spec:
         prometheus.io/port: "8080"
         prometheus.io/path: "/metrics"
     spec:
+      # The image already runs as uid 1654 — `USER $APP_UID` in the
+      # Dockerfile, expanded to a number at build time, which is what lets
+      # runAsNonRoot be asserted here without pinning the uid in the
+      # manifest. Saying it out loud means a future base image that returns
+      # to root fails to start instead of quietly running privileged.
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: dotnet-container
         # The tag must be bumped on every build. imagePullPolicy defaults
@@ -25,6 +34,17 @@ spec:
         # already holds this tag never fetches a new image and a rollout
         # silently keeps running the previous build.
         image: k8s-lab:v2
+        # Nothing here writes to disk: logs go to stdout and metrics are
+        # served from memory, so the root filesystem can stay read-only.
+        # That holds only while the application stays free of the
+        # DataProtection stack — add authentication, sessions or antiforgery
+        # and ASP.NET Core will want to write keys to ~/.aspnet, which needs
+        # an emptyDir mounted there rather than this line removed.
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
         ports:
         # containerPort is documentation only, it opens nothing.
         # The name lets the Service reference the port symbolically.
