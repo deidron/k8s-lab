@@ -272,10 +272,11 @@ is needed.
 
 ## Phase 5. The production manifest
 
-The dev overlays leave out three things production needs: probes (without them
-Kubernetes will not notice a hung pod and keeps sending it traffic), resource
-limits (one service can eat all memory and take the node down with it), and an
-image from a registry rather than a locally built one.
+The dev overlays leave out two things production needs: resource limits (one
+service can eat all memory and take the node down with it), and an image from a
+registry rather than a locally built one. Probes are not among them — they sit
+in the base, so a dev overlay behaves the way production does when a pod is slow
+to start or stops answering.
 
 All of that is already assembled in the `k8s/overlays/prod` overlay — no extra
 file to create. The one value to fill in is `newTag` in `kustomization.yaml`:
@@ -288,13 +289,20 @@ What the overlay adds on top of the base:
 - **the registry image** in place of the locally built one, substituted by the
   `images:` transformer, so no manifest is edited by hand
 - **a rolling update with `maxUnavailable: 0`** — a new pod becomes ready before
-  an old one is removed, so the service never dips below full capacity
-- **readiness and liveness probes**
+  an old one is removed, so the service never dips below full capacity. This is
+  what makes the readiness probe from the base load-bearing: without it there is
+  no "ready" to wait for
 - **resource requests and a memory limit**
 - **`DEPLOY_ENV: prod`**, which surfaces as the `env` attribute on traces
 
 Nothing else changes: the Service stays ClusterIP and the port stays named
-`http`. Render it to see the exact result:
+`http`. Note what is *not* on this list: the pod runs as a non-root user with a
+read-only root filesystem, no capabilities and no route to privilege
+escalation — but that comes from the base, so the dev overlays are held to the
+same terms. A setting that only production gets is a setting production
+discovers the hard way.
+
+Render it to see the exact result:
 
 ```bash
 kubectl kustomize k8s/overlays/prod

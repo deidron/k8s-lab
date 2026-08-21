@@ -184,3 +184,7 @@ and a reused tag makes a rollout silently keep the previous build.
 
 **Labels are low-cardinality.** Loki indexes labels rather than log content, so
 identifiers belong in the log body, not in a label.
+
+## License
+
+[MIT](LICENSE). Take whatever is useful.
